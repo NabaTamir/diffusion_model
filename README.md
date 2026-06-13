@@ -1,7 +1,7 @@
 # Class-Conditional Diffusion Model
 <br>
 
-## Objective
+## Introduction
 
 The aim of this study is to understand the diffusion model and its processes in terms of
 probabilistic reasoning, and to extend it from simple grayscale digits to **natural colour images**.
@@ -11,147 +11,118 @@ and comparing their outcomes builds deeper knowledge of probability, inference, 
 concepts behind modern generative models.
 <br><br>
 
-## The brief description of the diffusion model
+## Background
 
-The diffusion model is used to generate new data from its original data. It consists of two processes:
-1. The forward process
-2. The reverse process
+A diffusion model generates new images by learning to reverse a process that gradually destroys an
+image with noise. It is built from two processes that run in opposite directions along the same chain of
+increasingly noisy images.
 
-### The forward process
+**The forward process** X0 is the original data, and X1 is created by adding Gaussian noise to X0. This action is repeated t times until Xt is created. The final data Xt is complete noise — for an image, Xt is an indistinguishable blur (see t = 999 above).
 
-The forward process adds Gaussian noise to the original data step by step, as shown in Fig. 1.
+The main reason for using Gaussian noise is that it is smooth and continuous, with a mean of 0 and a standard deviation of 1. It affects all features of the data only slightly, so each noisy version is only slightly different from the previous one, and the original data changes gradually into complete noise. This gradual, well-behaved corruption is what makes the denoising (reverse) action possible to learn. Here a cosine (squaredcos_cap_v2) schedule controls how fast the noise is added.
 
 ![Forward process](figs/forward_diffusion.png)
-Fig. 1 Forward process — a real "dog" image is gradually corrupted into pure noise
 
-X<sub>0</sub> is the original data, and X<sub>1</sub> is created by adding Gaussian noise to X<sub>0</sub>.
-This action is repeated *t* times until X<sub>t</sub> is created. The final data X<sub>t</sub> is complete
-noise — for an image, X<sub>t</sub> is an indistinguishable blur (see t = 999 above).
+**Fig. 1.** Forward process — a real "dog" image is gradually corrupted into pure noise.
 
-The main reason for using Gaussian noise is that it is smooth and continuous, with a mean of 0 and a
-standard deviation of 1. It affects all features of the data only slightly, so each noisy version is
-only slightly different from the previous one, and the original data changes gradually into complete
-noise. This gradual, well-behaved corruption is what makes the denoising (reverse) action possible to
-learn. Here a cosine (`squaredcos_cap_v2`) schedule controls *how fast* the noise is added.
-
-### The reverse process
-
-The reverse process tries to generate the original data from the noisy data X<sub>t</sub>, as shown in
-Fig. 2.
+**The reverse process** Initially, the model forecasts the noise that was added during the forward process. Then it creates Xt-1 by removing the predicted noise from Xt. This denoising action is repeated until the noise is removed. The output of the reverse process is similar to the original data but is a new image, because the predicted noise differs slightly from the noise added in the forward process — so a different, plausible animal face is produced each time.
 
 ![Reverse process](figs/reverse_diffusion.png)
-Fig. 2 Reverse process — starting from noise and conditioning on "dog", a clean face emerges
 
-Initially, the model forecasts the noise that was added during the forward process. Then it creates
-X<sub>t-1</sub> by removing the predicted noise from X<sub>t</sub>. This denoising action is repeated
-until the noise is removed. The output of the reverse process is *similar* to the original data but is
-a **new** image, because the predicted noise differs slightly from the noise added in the forward
-process — so a different, plausible animal face is produced each time.
-<br><br>
+**Fig. 2.** Reverse process — starting from noise and conditioning on "dog", a clean face emerges.
 
-## Data Source
 
-The model is trained on the **Animal Faces-HQ (AFHQ)** dataset, which contains aligned, front-facing
-animal faces in three classes — **cat**, **dog**, and **wild**. The training split holds **16,130
-images** (5,653 cat / 5,239 dog / 5,238 wild), accessed through the HuggingFace Hub
-([`huggan/AFHQ`](https://huggingface.co/datasets/huggan/AFHQ)). Images are resized to **64×64** and
-normalised to the range [-1, 1]. A labelled sample of the real data is shown in Fig. 3.
+## Method
+
+**Data.** Training uses the AFHQ dataset of aligned, front-facing animal faces. The training split holds
+**16,130 images** (5,653 cat / 5,239 dog / 5,238 wild), obtained from the HuggingFace Hub
+([`huggan/AFHQ`](https://huggingface.co/datasets/huggan/AFHQ)). Images are resized to **64×64**,
+randomly flipped horizontally, and normalised to the range [-1, 1].
 
 ![Real samples](figs/real_samples.png)
-Fig. 3 Real AFHQ samples (64×64)
-<br><br>
 
-## Deep Learning
+**Fig. 3.** Real AFHQ training samples (64×64).
 
-### Model Building
+**Model.** The denoising network is a **U-Net** (`UNet2DModel` from HuggingFace `diffusers`) that
+predicts the noise at each step. It has five resolution levels (64 → 32 → 16 → 8 → 4) with two residual
+blocks per level and self-attention at the 16×16 and 8×8 stages, giving about **126.5M parameters**.
+Skip connections carry fine detail from the downsampling path to the upsampling path.
 
-In this study a **U-Net** (`UNet2DModel` from HuggingFace `diffusers`) is used to predict the noise at
-each step. It has five resolution levels (64 → 32 → 16 → 8 → 4) with two residual blocks per level and
-**self-attention at the 16×16 and 8×8 stages**, giving about **126.5M parameters**. Skip connections
-carry fine detail from the encoder (downsampling) path to the decoder (upsampling) path.
-
-The model can be trained both **conditionally** and **unconditionally**. Unconditional generation means
-the model sees images without their labels and learns the general rule — it produces *some* animal but
-cannot be told which. Conditional generation feeds the class label as a learned embedding, so the model
-learns a separate rule for each class. To support **classifier-free guidance (CFG)**, the label of
-about 10% of images is randomly dropped and replaced with a special "no-class" token (a 4th class
-alongside cat/dog/wild). The model therefore learns both the conditional and unconditional behaviours at
-once, and at sampling time the two are combined to steer the output toward the requested class.
+**Class control.** The class label is supplied as a learned embedding, so the network learns a separate
+behaviour per class. To enable **classifier-free guidance (CFG)**, the label is randomly dropped for
+about 10% of training images and replaced with a special "no-class" token. The same network therefore
+learns both conditional generation ("draw a dog") and unconditional generation ("draw any animal"); at
+sampling time the two are combined, and a guidance scale controls how strongly the output is pushed
+toward the requested class.
 
 | Component | Setting |
 |---|---|
 | Architecture | U-Net, 5 levels (64→32→16→8→4), attention at 16×16 and 8×8 |
-| Channels | (128, 256, 384, 512, 512), 2 blocks per level — ~126.5M params |
-| Conditioning | 3 classes + 1 "no-class" token for CFG |
-| Diffusion | 1000 timesteps, cosine (`squaredcos_cap_v2`) schedule, ε-prediction |
+| Parameters | (128, 256, 384, 512, 512) channels, 2 blocks/level — ~126.5M |
+| Conditioning | 3 classes + 1 "no-class" token, 10% label dropout (CFG) |
+| Diffusion | 1000 steps, cosine (`squaredcos_cap_v2`) schedule, ε-prediction |
+| Loss | noise-prediction MSE, Min-SNR-γ weighting (γ = 5) |
 | Optimiser | AdamW, lr 2e-4, warmup + cosine decay, gradient clipping, fp16 |
-| Stabilisation | EMA weights, Min-SNR-γ loss weighting (γ = 5.0) |
-| Sampling | DDIM, 100–200 steps, guidance scale 1.5 |
+| Stabilisation | EMA weights (decay 0.9995) |
+| Sampling | DDIM, 100–200 steps, guidance scale ≈ 1.5 |
 
-### Evaluation Metrics
+The full pipeline is in [`notebook/afhq_diffusion.ipynb`](notebook/afhq_diffusion.ipynb) and runs top to
+bottom (`pip install -r requirements.txt`, then run all). After training, images are generated with a
+single call, e.g. `draw("cat", n=8)`.
 
-The **mean squared error (MSE)** between the actual added noise and the predicted noise is used as the
-loss (weighted by Min-SNR-γ). Fig. 4 shows the loss falling over training.
+
+## Results
+
+**Training.** The noise-prediction loss (Min-SNR weighted) falls sharply from **0.169** at epoch 1 to
+about **0.027** by epoch 2, then decreases slowly to **0.0143** by epoch 50. The curve is smooth with no
+spikes, and is essentially flat after about epoch 20 — most learning happens early.
 
 ![Loss curve](figs/loss_curve.png)
 
-Fig. 4 Conditional training loss per epoch
+**Fig. 4.** Conditional training loss per epoch.
 
-The loss dropped sharply from **0.169** (epoch 1) to about **0.027** by epoch 2, then decreased slowly
-to **0.0143** by epoch 50. The curve is smooth with no spikes, indicating stable training. Most of the
-learning happened in the first ~20 epochs, after which the loss flattened — further epochs gave only
-small refinements at this resolution.
-
-### Model Performance
-
-The identifiable images in Fig. 5 were generated after several experiments varying the number of epochs,
-batch size, model base channels, learning rate, and noise schedule. Each row corresponds to a requested
-class, confirming that the model can be **told what to draw**.
+**Conditional generation.** The model reliably produces the requested class. In Fig. 5 each row is a
+single class; the classes are clearly separable and retain variety rather than collapsing onto one
+prototype face.
 
 ![Generated images](figs/class_sheet.png)
-Fig. 5 Generated images, one row per class (cat / dog / wild)
 
-**Classifier-free guidance** controls how strongly the output is pushed toward the requested class.
-Fig. 6 sweeps the guidance scale for the "dog" class. Lower guidance gives softer, more varied images;
-higher guidance gives crisper, more "typical" ones but eventually over-saturates and loses variety.
-A value around **1.5** is a good middle ground.
+**Fig. 5.** Generated images, one row per requested class (cat / dog / wild).
+
+**Effect of guidance.** Increasing the guidance scale trades diversity for class typicality. Low values
+give softer, more varied faces; high values give crisper, more "typical" ones that eventually
+over-saturate and lose variety. A value around 1.5 is a good balance.
 
 ![Guidance sweep](figs/guidance_sweep.png)
-Fig. 6 Guidance sweep for "dog" (scale = 1.0 / 1.5 / 3.0)
+
+**Fig. 6.** Guidance sweep for the "dog" class (scale = 1.0 / 1.5 / 3.0).
+
+Additional experiments in the notebook show that a cosine schedule outperforms a linear one at this
+resolution, a larger model produces clearer samples than a narrower one on the same budget, and
+interpolating between two class embeddings yields plausible in-between animals.
 <br><br>
+
+## Discussion
+
+The results show that a single conditional network with classifier-free guidance is enough for reliable,
+controllable class generation, and that standard techniques (cosine schedule, Min-SNR weighting, EMA,
+gradient clipping) give smooth, stable training. Two limitations stand out. First, at 64×64 the outputs
+are clean and clearly recognisable but soft up close — resolution, rather than longer training, is the
+main constraint on sharpness, so moving to 128×128 (with a deeper U-Net and gradient accumulation to fit
+memory) is the natural next step. Second, occasional unnatural background tints come from the variety of
+AFHQ's source photos, not from undertraining. A quantitative metric such as FID would complement the
+qualitative results presented here.
+
 
 ## Conclusion
 
-This project studied diffusion models and how noise is progressively added to and then removed from
-images to generate new samples. Moving from grayscale digits to natural colour animal faces, a
-class-conditional model was implemented and trained, and several configurations (epochs, model size,
-guidance strength, and noise schedule) were examined to see how they affect image quality. The findings
-show that the conditional model with classifier-free guidance can reliably generate a chosen class, that
-a larger model and a cosine noise schedule produce clearer results, and that most learning happens
-early in training. At 64×64 the outputs are clean and clearly recognisable rather than photoreal, which
-sets an honest ceiling on sharpness — higher resolution is the main lever for further quality. Overall,
-diffusion models worked well for image generation and offered insightful information about probability,
-inference, and machine-learning model concepts.
-<br><br>
+A class-conditional diffusion model was implemented and trained from scratch on AFHQ, generating clear,
+class-separable cat, dog, and wild faces on demand through classifier-free guidance. The experiments
+clarified how guidance strength, noise schedule, model size, and training length affect image quality,
+and showed that most learning occurs early in training. Beyond the working model, the project gave a
+concrete understanding of the probabilistic ideas behind diffusion — a fixed noising process inverted by
+a learned noise predictor — with resolution identified as the main avenue for further improvement.
 
-## How to use
-
-```bash
-pip install -r requirements.txt
-```
-
-Open [`notebook/afhq_diffusion.ipynb`](notebook/afhq_diffusion.ipynb) and run it top-to-bottom; the
-dataset downloads automatically. A CUDA GPU is recommended. After training, generate images with:
-
-```python
-draw("cat",  n=8)   # 8 cats
-draw("dog",  n=8)   # 8 dogs
-draw("wild", n=8)   # 8 wild animals
-```
-
-> Trained weights (`afhq_cond_final.pt`, ~480 MB) are not committed; re-run the training cells to
-> reproduce them, or host them via a GitHub Release / HuggingFace Hub.
-<br><br>
 
 ## Reference
 
