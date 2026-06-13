@@ -1,4 +1,4 @@
-# AFHQ Class-Conditional Diffusion Model
+# Class-Conditional Diffusion Model
 <br>
 
 ## Objective
