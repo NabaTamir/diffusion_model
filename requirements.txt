@@ -1,0 +1,11 @@
+torch
+torchvision
+numpy
+matplotlib
+Pillow
+tqdm
+diffusers==0.31.0
+transformers==4.44.2
+huggingface_hub==0.25.2
+accelerate==0.33.0
+datasets==2.21.0
