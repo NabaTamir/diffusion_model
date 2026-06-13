@@ -78,7 +78,6 @@ about **0.027** by epoch 2, then decreases slowly to **0.0143** by epoch 50. The
 spikes, and is essentially flat after about epoch 20 — most learning happens early.
 
 ![Loss curve](figs/loss_curve.png)
-
 **Fig. 4.** Conditional training loss per epoch.
 
 **Conditional generation.** The model reliably produces the requested class. In Fig. 5 each row is a
