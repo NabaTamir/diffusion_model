@@ -1,15 +1,8 @@
 # Class-Conditional Diffusion Model
-<br>
 
 ## Objective
 
-The aim of this study is to understand the diffusion model and its processes in terms of
-probabilistic reasoning, and to extend it from simple grayscale digits to **natural colour images**.
-A class-conditional diffusion model is implemented from scratch and trained on animal faces, so that
-the model can be *told which animal to draw*. Implementing the model, running a series of experiments,
-and comparing their outcomes builds deeper knowledge of probability, inference, and the machine-learning
-concepts behind modern generative models.
-<br><br>
+The aim of this study is to understand diffusion models and the probabilistic reasoning behind them, as one of the core methods driving modern generative AI. A class-conditional diffusion model is implemented from scratch and trained on natural colour images of animal faces, so the model can be told which animal to draw. Implementing the model, running a series of experiments, and comparing their outcomes builds deeper knowledge of probability, inference, and the machine-learning concepts behind today's generative image models.
 
 ## The brief description of the diffusion model
 
@@ -94,6 +87,7 @@ The **mean squared error (MSE)** between the actual added noise and the predicte
 loss (weighted by Min-SNR-γ). Fig. 4 shows the loss falling over training.
 
 ![Loss curve](figs/loss_curve.png)
+
 Fig. 4 Conditional training loss per epoch
 
 The loss dropped sharply from **0.169** (epoch 1) to about **0.027** by epoch 2, then decreased slowly
