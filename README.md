@@ -28,16 +28,16 @@ The main reason for using Gaussian noise is that it is smooth and continuous, wi
 
 **Data.** Training uses the AFHQ dataset of aligned, front-facing animal faces. The training split holds
 **16,130 images** (5,653 cat / 5,239 dog / 5,238 wild), obtained from the HuggingFace Hub
-([`huggan/AFHQ`](https://huggingface.co/datasets/huggan/AFHQ)). Images are resized to **64×64**,
+([`huggan/AFHQ`](https://huggingface.co/datasets/huggan/AFHQ)). Images are resized to **128×128**,
 randomly flipped horizontally, and normalised to the range [-1, 1].
 
 ![Real samples](figs/real_samples.png)
 
-**Fig. 3.** Real AFHQ training samples (64×64).
+**Fig. 3.** Real AFHQ training samples.
 
 **Model.** The denoising network is a **U-Net** (`UNet2DModel` from HuggingFace `diffusers`) that
-predicts the noise at each step. It has five resolution levels (64 → 32 → 16 → 8 → 4) with two residual
-blocks per level and self-attention at the 16×16 and 8×8 stages, giving about **126.5M parameters**.
+predicts the noise at each step. It has six resolution levels (128 → 64 → 32 → 16 → 8 → 4) with two residual
+blocks per level and self-attention at the 16×16 and 8×8 stages, giving about **129.2M parameters**.
 Skip connections carry fine detail from the downsampling path to the upsampling path.
 
 **Class control.** The class label is supplied as a learned embedding, so the network learns a separate
@@ -49,8 +49,8 @@ toward the requested class.
 
 | Component | Setting |
 |---|---|
-| Architecture | U-Net, 5 levels (64→32→16→8→4), attention at 16×16 and 8×8 |
-| Parameters | (128, 256, 384, 512, 512) channels, 2 blocks/level — ~126.5M |
+| Architecture | U-Net, 6 levels (128→64→32→16→8→4), attention at 16×16 and 8×8 |
+| Parameters | (128, 128, 256, 384, 512, 512) channels, 2 blocks/level — ~129.2M |
 | Conditioning | 3 classes + 1 "no-class" token, 10% label dropout (CFG) |
 | Diffusion | 1000 steps, cosine (`squaredcos_cap_v2`) schedule, ε-prediction |
 | Loss | noise-prediction MSE, Min-SNR-γ weighting (γ = 5) |
@@ -65,8 +65,8 @@ single call, e.g. `draw("cat", n=8)`.
 
 ## Results
 
-**Training.** The noise-prediction loss (Min-SNR weighted) falls sharply from **0.169** at epoch 1 to
-about **0.027** by epoch 2, then decreases slowly to **0.0143** by epoch 50. The curve is smooth with no
+**Training.** The noise-prediction loss (Min-SNR weighted) falls sharply from **0.111** at epoch 1 to
+about **0.018** by epoch 2, then decreases slowly to **0.0113** by epoch 50. The curve is smooth with no
 spikes, and is essentially flat after about epoch 20 — most learning happens early.
 
 ![Loss curve](figs/loss_curve.png)
@@ -97,12 +97,23 @@ interpolating between two class embeddings yields plausible in-between animals.
 
 The results show that a single conditional network with classifier-free guidance is enough for reliable,
 controllable class generation, and that standard techniques (cosine schedule, Min-SNR weighting, EMA,
-gradient clipping) give smooth, stable training. Two limitations stand out. First, at 64×64 the outputs
-are clean and clearly recognisable but soft up close — resolution, rather than longer training, is the
-main constraint on sharpness, so moving to 128×128 (with a deeper U-Net and gradient accumulation to fit
-memory) is the natural next step. Second, occasional unnatural background tints come from the variety of
-AFHQ's source photos, not from undertraining. A quantitative metric such as FID would complement the
-qualitative results presented here.
+gradient clipping) give smooth, stable training. At 128×128 the samples are sharp and clearly
+class-separable — a clear step up from a 64×64 baseline. Two limitations remain. First, fine details
+(fur, whiskers, eye highlights) are good but not photoreal; pushing further would mean a higher
+resolution still, more data, or longer training. Second, occasional unnatural background tints come from
+the variety of AFHQ's source photos, not from undertraining. A quantitative metric such as FID would
+complement the qualitative results presented here.
+
+
+## Future Research
+
+A future extension of this project would be to move from class-conditional generation to attribute- or
+text-conditional generation. The current model can control broad animal classes such as cat, dog, and
+wild, but it cannot understand detailed prompts such as "a dog wearing a red hat" because it is trained
+only with class labels. To support this kind of control, the model would need either additional labelled
+attributes, such as colour and accessories, or a text-conditioning mechanism similar to modern
+text-to-image diffusion models. This would allow more flexible and detailed image generation beyond
+simple class labels.
 
 
 ## Conclusion
@@ -112,7 +123,7 @@ class-separable cat, dog, and wild faces on demand through classifier-free guida
 clarified how guidance strength, noise schedule, model size, and training length affect image quality,
 and showed that most learning occurs early in training. Beyond the working model, the project gave a
 concrete understanding of the probabilistic ideas behind diffusion — a fixed noising process inverted by
-a learned noise predictor — with resolution identified as the main avenue for further improvement.
+a learned noise predictor — producing sharp, controllable 128×128 results.
 
 
 ## Reference
@@ -125,3 +136,6 @@ a learned noise predictor — with resolution identified as the main avenue for 
 - Y. Choi, Y. Uh, J. Yoo, and J.-W. Ha, "StarGAN v2: Diverse Image Synthesis for Multiple Domains"
   (AFHQ dataset), *CVPR*, 2020. https://github.com/clovaai/stargan-v2
 - HuggingFace `diffusers` library. https://github.com/huggingface/diffusers
+- C. University, "Diffusion and Flow Matching Models," *Lecture 6*, Senjian, Ed.
+- M. Wornow, "Diffusion Models from Scratch," michaelwornow.net, 2023.
+  https://michaelwornow.net/2023/07/01/diffusion-models-from-scratch
