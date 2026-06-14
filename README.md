@@ -23,7 +23,6 @@ The main reason for using Gaussian noise is that it is smooth and continuous, wi
 
 **Fig. 2.** Reverse process — starting from noise and conditioning on "dog", a clean face emerges.
 
-
 ## Method
 
 **Data.** Training uses the AFHQ dataset of aligned, front-facing animal faces. The training split holds
